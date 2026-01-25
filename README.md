@@ -4,18 +4,19 @@ A simple and user-friendly **GUI-based multi-label defect classification trainin
 With a graphical interface, you can complete the entire workflow in one click: Excel label conversion → optional bounding box annotation → data augmentation → model training → evaluation.
 
 Key features:
-- Multi-label classification (one sample can belong to multiple defect classes)
-- Feature extraction with ResNet50 / EfficientNet-B0 + fully connected head
-- Advanced data augmentation (elastic deformation + binary channel, etc.)
-- Few-shot Ensemble Learning (multiple random seeds + voting ensemble)
-- Automatically saves training logs, confusion matrices, error sample analysis, Grad-CAM heatmaps, etc.
+- Multi-label classification with **EfficientNet-B0 + FPN + CBAM** attention mechanism
+- Advanced data augmentation including **Topology-Preserving Elastic Deformation Augmentation (TPED)** and binary channel
+- Per-class augmentation multiplier for handling imbalanced datasets
+- Few-shot Ensemble Learning (multiple random seeds + averaging ensemble)
+- Automatic visualization: Grad-CAM heatmaps, training curves, confusion matrices & error analysis
+- Focal Loss, Early Stopping and learning rate scheduling
 
 ## Quick Start (Recommended Workflow)
 
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/DefectMaster-Pro.git
+git clone https://github.com/zokaraa/DefectMaster-Pro.git
 cd DefectMaster-Pro
 ```
 
@@ -30,20 +31,22 @@ Recommended environment:
 
 ### 3. Prepare Your Data (Most Important Step)
 1. Put all training images (png / jpg / jpeg / bmp / tif, etc.) into one single folder, e.g.: `data/images/`
-2. **Strongly recommended**: Use the provided template file `examples/labels_example.xlsx`
-Modification rules:
-- First column: `image id` (must be consecutive integers starting from 1, matching image filenames like `1.png`, `2.png`, …)
-- Following columns: defect class names (must **exactly match** the class names you will enter in the GUI)
-- Values: fill `1` (or any non-empty value) if the class exists; leave blank if absent
-Example (4 classes):
+2. **Strongly recommended**: Use the provided template file [`sample dataset/defect statistics.xlsx`](sample%20dataset/defect%20statistics.xlsx)  
+   (Modify this file with your own labels. Do **not** change column order or format.)
+   
+   - First column: `image id` (must be consecutive integers starting from 1, matching image filenames like `1.png`, `2.png`, …)
+   - Following columns: defect class names (must **exactly match** the class names you will enter in the GUI)
+   - Values: fill `1` if the class exists; leave blank if absent
+     
+   Example (4 classes):
 
-| image id | No Defect | Dislocation | Bridge | Junction |
-|----------|-----------|-------------|--------|----------|
-| 1        |           | 1           |        |          |
-| 2        | 1         |             |        |          |
-| 3        |           |             | 1      | 1        |
+   | image id | No Defect | Dislocation | Bridge | Junction |
+   |----------|-----------|-------------|--------|----------|
+   | 1        |           | 1           |        |          |
+   | 2        | 1         |             |        |          |
+   | 3        |           |             | 1      | 1        |
 
-  **Important**: Do **not** change the column order or format arbitrarily, otherwise the program may fail to read correctly.
+    **Important**: Do **not** change the column order or format arbitrarily, otherwise the program may fail to read correctly.
 
 ### 4. Launch the Program
 ```Bash
@@ -63,7 +66,7 @@ python "DefectMaster Pro.py"
 
 Training progress and logs are shown in real-time at the bottom of the window. All results are automatically saved in the experiment directory after completion.
 
-### Main Output Files (in the experiment directory)
+## Main Output Files (in the experiment directory)
 ```text
 experiments/experiment_YYYYMMDD_HHMMSS/
 ├── augmentation_samples/      # Before/after augmentation sample images (debug & visualization)
@@ -86,7 +89,7 @@ experiments/experiment_YYYYMMDD_HHMMSS/
 └── training_log.json          # Full training history & summary (json)
 ```
 
-### Dependencies (reference for requirements.txt)
+## Dependencies (reference for requirements.txt)
 ```text
 texttorch>=2.0.0
 torchvision>=0.15.0
@@ -104,17 +107,17 @@ psutil>=5.9
 ```
 **Note**: tkinter is required for GUI (usually included in Python; on Linux, install via `sudo apt install python3-tk`).
 
-### Known Limitations & Notes
+## Known Limitations & Notes
 - Currently assumes image filenames are 1.png, 2.png, … (consecutive integers). Arbitrary filenames are not yet supported (can be improved later).
 - Excel should have headers in the first row; the program automatically skips any statistic rows.
 - Recommended class count: 2–10. Too many classes may lead to poor convergence.
 - Memory usage depends on batch size, image resolution, and augmentation strength.
 - If training hangs or crashes, check: All images exist in the folder; Excel format is correct; GPU memory is sufficient
 
-### License
+## License
 This project is licensed under the MIT License.
 
-### Acknowledgements
+## Acknowledgements
 - torchvision pretrained models
 - iterative-stratification for multi-label splitting
 - tkinter for lightweight GUI
