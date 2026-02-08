@@ -17,7 +17,7 @@ DefectMaster Pro integrates **Topology-Preserving Elastic Deformation (TPED)**, 
 TPED generates smooth, realistic geometric variations using Thin-Plate Spline (TPS) interpolation with a strict fold-free constraint (Jacobian determinant check), significantly increasing sample diversity while preserving the semantic integrity of defects. It is especially effective in few-shot, multi-class, and imbalanced defect classification scenarios.
 
 **Detailed usage, parameter explanations, mathematical background, visual examples, and before/after comparisons**  
-→ See the dedicated [tped/TPED_README.md](tped/TPED_README.md)
+→ See the dedicated [TPED/TPED_README.md](TPED/TPED_README.md)
 
 Main highlights:
 - Supports bbox-guided local deformation (focuses changes near defects, protects background)
