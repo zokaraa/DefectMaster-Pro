@@ -1,4 +1,3 @@
-# defect_training_gui_ver5_fixed_log.py
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import os
@@ -30,7 +29,7 @@ def import_module_from_path(module_name, file_path):
 # Import modules
 excel_to_npy_module = import_module_from_path("excel_to_npy", "Multi-class Defect Statistics Excel to NPY Converter.py")
 bbox_tool_module = import_module_from_path("bbox_tool", "BBox Annotation Tool.py")
-train_module = import_module_from_path("train_module", "Few-shot Ensemble Learning 090404.py")
+train_module = import_module_from_path("train_module", "Few-shot Ensemble Learning TPED_FF.py")
 
 
 # stderr redirect
@@ -81,7 +80,7 @@ class DefectTrainingPro:
 
         # Hyperparameters
         self.augment_multiplier = tk.IntVar(value=3)
-        self.intensity_modifier = tk.DoubleVar(value=3.0)
+        self.intensity_modifier = tk.DoubleVar(value=0.3)
         self.augment_per_class = {}
         self.num_seeds = tk.IntVar(value=5)
         self.test_size = tk.DoubleVar(value=0.20)
@@ -228,7 +227,7 @@ class DefectTrainingPro:
         # Other advanced parameters
         r = 2
         params = [
-            ("Elastic Deform Intensity:", self.intensity_modifier, "scale", 0.5, 10.0, 0.5),
+            ("Elastic Deform Intensity:", self.intensity_modifier, "scale", 0.05, 1.0, 0.05),
             ("Individual Models Count:", self.num_seeds, "combo", [2,3,4,5,6,7,8,9,10]),
             ("Test Set Ratio:", self.test_size, "scale", 0.10, 0.40, 0.05),
             ("Validation Set Ratio:", self.val_size, "scale", 0.10, 0.30, 0.05),
