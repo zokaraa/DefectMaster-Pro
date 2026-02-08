@@ -1,5 +1,8 @@
 # DefectMaster Pro
 
+GitHub: https://github.com/zokaraa/DefectMaster-Pro  
+Quick clone: `git clone https://github.com/zokaraa/DefectMaster-Pro.git`
+
 A simple and user-friendly **GUI-based multi-label defect classification training tool**, designed specifically for few-shot and multi-class defect detection scenarios.  
 With a graphical interface, you can complete the entire workflow in one click: Excel label conversion → optional bounding box annotation → data augmentation → model training → evaluation.
 
