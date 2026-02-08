@@ -11,6 +11,20 @@ Key features:
 - Automatic visualization: Grad-CAM heatmaps, training curves, confusion matrices & error analysis
 - Focal Loss, Early Stopping and learning rate scheduling
 
+### Advanced Data Augmentation: TPED (Topology-Preserving Elastic Deformation)
+
+DefectMaster Pro integrates **Topology-Preserving Elastic Deformation (TPED)**, a specialized augmentation technique designed for microscopy-like patterns and morphology-driven images.  
+TPED generates smooth, realistic geometric variations using Thin-Plate Spline (TPS) interpolation with a strict fold-free constraint (Jacobian determinant check), significantly increasing sample diversity while preserving the semantic integrity of defects. It is especially effective in few-shot, multi-class, and imbalanced defect classification scenarios.
+
+**Detailed usage, parameter explanations, mathematical background, visual examples, and before/after comparisons**  
+→ See the dedicated [tped/TPED_README.md](tped/TPED_README.md)
+
+Main highlights:
+- Supports bbox-guided local deformation (focuses changes near defects, protects background)
+- Automatic multi-try + fallback mechanism to guarantee topology-preserving (fold-free) results
+- Adjustable deformation strength (`delta_max`) and smoothness (`sigma`)
+- Seamlessly combines with other augmentations (e.g. binary channel) for better model robustness
+
 ## Quick Start (Recommended Workflow)
 
 ### 1. Clone the Repository
