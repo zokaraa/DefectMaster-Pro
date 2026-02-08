@@ -41,6 +41,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 import multiprocessing
+import TPED_fast as tp
 
 config = None
 
@@ -51,7 +52,7 @@ class Config:
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         print(f"Using device: {self.device}")
         self.save_model_prefix = 'HPLmodel'
-        self.save_root_dir = "./samezoom_multilabel090404"
+        self.save_root_dir = "./samezoom_multilabel"
         self.image_dir = './same_zoom_selected250812_rename'
         self.class_names = []
         self.class_names_cn = []
@@ -75,7 +76,7 @@ class Config:
         self.random_seeds = [42, 123]
 
         self.use_augmentation = True
-        self.intensity_modifier = 3.0
+        self.intensity_modifier = 0.1
         self.augment_counts_expand = 3
         self.augment_counts = {}
         self.num_samples_to_save = 5
@@ -313,6 +314,26 @@ class AdvancedImageDataset(Dataset):
             self.save_augmentation_samples()
 
     # ====================================================下面是数据增强方法==================================================================
+    def _bboxes_to_tped(self, bboxes_with_type):
+        """
+        Convert your current bbox format:
+            [(defect_type, [x1,y1,x2,y2]), ...]
+        to TPED.py bbox format:
+            [(x1,y1,x2,y2), ...]
+        """
+        if not bboxes_with_type:
+            return None
+        out = []
+        for item in bboxes_with_type:
+            if not item:
+                continue
+            if isinstance(item, (list, tuple)) and len(item) == 2:
+                _, bbox = item
+            else:
+                bbox = item
+            x1, y1, x2, y2 = bbox
+            out.append((float(x1), float(y1), float(x2), float(y2)))
+        return out if out else None
 
     def get_bbox_area(self, bbox, W, H):
         x_min, y_min, x_max, y_max = bbox
@@ -321,125 +342,60 @@ class AdvancedImageDataset(Dataset):
         return (x_max - x_min) * (y_max - y_min)
 
     def elastic_deform(self, img, defect_types_present=None, bboxes=None, is_binary=False):
-        """Elastic deformation augmentation: minimum distance between control points, fixed absolute displacement range, with random sign."""
-        img = np.array(img)
-        H, W = img.shape[:2]
-        channels = 1 if len(img.shape) == 2 else img.shape[2]
-        rng = np.random.default_rng()
-        intensity_modifier = getattr(self.config, 'intensity_modifier', 3.0)
-        min_dist_ratio = 0.12
-        min_dist = int(min(H, W) * min_dist_ratio)
-        max_attempts = 100
-        global_intensity_scale = 0.6
-        border_pts = np.concatenate([
-            np.array([[0, 0], [W-1, 0], [W-1, H-1], [0, H-1]]),
-            np.array([[x, 0] for x in np.linspace(0, W-1, 5)[1:-1]]),
-            np.array([[x, H-1] for x in np.linspace(0, W-1, 5)[1:-1]]),
-            np.array([[0, y] for y in np.linspace(0, H-1, 5)[1:-1]]),
-            np.array([[W-1, y] for y in np.linspace(0, H-1, 5)[1:-1]])
-        ])
-        defect_params = {
-            'no_defect': {'base_intensity': 0.03, 'base_points': 5},
-            'dislocation': {'base_intensity': 0.01, 'base_points': 3},
-            'bridges': {'base_intensity': 0.02, 'base_points': 3},
-            'junction': {'base_intensity': 0.02, 'base_points': 3}
-        }
-        ctrl_pts = []
-        dx_all = []
-        dy_all = []
-        all_points = []
-        if bboxes:
-            base_area = 5000
-            for defect_type, bbox in bboxes:
-                params = defect_params.get(defect_type, {'base_intensity': 0.02, 'base_points': 3})
-                area = self.get_bbox_area(bbox, W, H)
-                area_ratio = area / base_area if area > 0 else 1.0
-                n_points = min(3, max(2, int(params['base_points'] + np.log1p(area_ratio))))
-                intensity = params['base_intensity'] * global_intensity_scale * intensity_modifier
-                x_min, y_min, x_max, y_max = bbox
-                x_min, x_max = max(0, x_min), min(W - 1, x_max)
-                y_min, y_max = max(0, y_min), min(H - 1, y_max)
-                points = []
-                for _ in range(n_points):
-                    for attempt in range(max_attempts):
-                        x = rng.uniform(x_min, x_max)
-                        y = rng.uniform(y_min, y_max)
-                        new_point = np.array([x, y])
-                        if len(all_points) == 0 or np.all(np.sqrt(np.sum((np.array(all_points) - new_point)**2, axis=1)) >= min_dist):
-                            points.append([x, y])
-                            all_points.append([x, y])
-                            break
-                    else:
-                        print(f"Warning: Unable to generate enough control points within bbox ({x_min}, {y_min}, {x_max}, {y_max})")
-                if points:
-                    points = np.array(points)
-                    x0, y0 = points[:, 0], points[:, 1]
-                    abs_values = rng.uniform(intensity * W * 0.3, intensity * W * 0.7, len(points))
-                    signs = rng.choice([-1, 1], len(points))
-                    dx = abs_values * signs
-                    abs_values = rng.uniform(intensity * H * 0.3, intensity * H * 0.7, len(points))
-                    signs = rng.choice([-1, 1], len(points))
-                    dy = abs_values * signs
-                    ctrl_pts.append(np.column_stack([x0, y0]))
-                    dx_all.extend(dx)
-                    dy_all.extend(dy)
-        else:
-            for defect_type in (defect_types_present or ['default']):
-                params = defect_params.get(defect_type, {'base_intensity': 0.02, 'base_points': 3})
-                n_points = params['base_points']
-                intensity = params['base_intensity'] * global_intensity_scale * intensity_modifier
-                points = []
-                for _ in range(n_points):
-                    for attempt in range(max_attempts):
-                        x = rng.uniform(0.1 * W, 0.9 * W)
-                        y = rng.uniform(0.1 * H, 0.9 * H)
-                        new_point = np.array([x, y])
-                        if len(all_points) == 0 or np.all(np.sqrt(np.sum((np.array(all_points) - new_point)**2, axis=1)) >= min_dist):
-                            points.append([x, y])
-                            all_points.append([x, y])
-                            break
-                    else:
-                        print(f"Warning: Unable to generate enough control points in the image ({W}, {H})")
-                if points:
-                    points = np.array(points)
-                    x0, y0 = points[:, 0], points[:, 1]
-                    abs_values = rng.uniform(intensity * W * 0.3, intensity * W * 1.0, len(points))
-                    signs = rng.choice([-1, 1], len(points))
-                    dx = abs_values * signs
-                    abs_values = rng.uniform(intensity * H * 0.3, intensity * H * 1.0, len(points))
-                    signs = rng.choice([-1, 1], len(points))
-                    dy = abs_values * signs
-                    ctrl_pts.append(np.column_stack([x0, y0]))
-                    dx_all.extend(dx)
-                    dy_all.extend(dy)
-        if len(ctrl_pts) > 0:
-            ctrl_pts = np.vstack([border_pts] + ctrl_pts)
-            dx_all = np.hstack([np.zeros(len(border_pts)), dx_all])
-            dy_all = np.hstack([np.zeros(len(border_pts)), dy_all])
-            max_points = 24
-            if len(ctrl_pts) > max_points:
-                indices = np.random.choice(len(ctrl_pts) - len(border_pts), max_points - len(border_pts), replace=False)
-                ctrl_pts = np.vstack([border_pts, ctrl_pts[len(border_pts):][indices]])
-                dx_all = np.hstack([np.zeros(len(border_pts)), dx_all[len(border_pts):][indices]])
-                dy_all = np.hstack([np.zeros(len(border_pts)), dy_all[len(border_pts):][indices]])
-        else:
-            ctrl_pts = border_pts
-            dx_all = np.zeros(len(border_pts))
-            dy_all = np.zeros(len(border_pts))
-        rbf_dx = Rbf(ctrl_pts[:, 0], ctrl_pts[:, 1], dx_all, function='thin_plate')
-        rbf_dy = Rbf(ctrl_pts[:, 0], ctrl_pts[:, 1], dy_all, function='thin_plate')
-        rows, cols = np.indices((H, W))
-        coords = np.column_stack([cols.ravel(), rows.ravel()])
-        delta_x = rbf_dx(coords[:, 0], coords[:, 1]).reshape(H, W)
-        delta_y = rbf_dy(coords[:, 0], coords[:, 1]).reshape(H, W)
-        map_x = (cols + delta_x).astype(np.float32)
-        map_y = (rows + delta_y).astype(np.float32)
-        border_value = 0 if channels == 1 else (0, 0, 0)
-        deformed = cv2.remap(img, map_x, map_y, cv2.INTER_NEAREST if is_binary else cv2.INTER_LINEAR,
-                            borderMode=cv2.BORDER_CONSTANT, borderValue=border_value)
+        """
+        Fold-free elastic deformation using TPED module.
+
+        Notes:
+        - Uses tp.TPED(..., is_fold_free=True) to enforce fold-free (FF).
+        - If TPED fails after its internal retries (10 + halve delta + 10), it returns the original image.
+        - sigma and delta_max are relative by default in TPED.py:
+            unit = min side length among bboxes; if no bbox, unit = min(H,W).
+        """
+        # Ensure PIL.Image input for downstream consistency
+        if not isinstance(img, Image.Image):
+            img = Image.fromarray(np.array(img))
+
+        # Convert to grayscale if needed (your pipeline uses as_gray=True)
+        # If you have multi-channel images, you can remove this.
+        if img.mode != "L":
+            img = img.convert("L")
+
+        # Convert bboxes to TPED format (list of (x1,y1,x2,y2))
+        tped_bboxes = self._bboxes_to_tped(bboxes)
+
+        # Default parameters: you can put them into config if you like
+        sigma = getattr(self.config, "tped_sigma", 0.1)
+        delta_max = getattr(self.config, "intensity_modifier", 0.8)
+        max_cp = getattr(self.config, "tped_max_control_point_number", 3)
+
+        # Run TPED with fold-free enforcement
+        out_img, info = tp.TPED(
+            img,
+            bboxes=tped_bboxes,
+            sigma=float(sigma),
+            delta_max=float(delta_max),
+            max_control_point_number=int(max_cp),
+            is_fold_free=True,          # <<< enforce FF
+            max_tries=10,               # stage 0 tries
+            halve_delta_on_fail=True,   # stage 1: delta/2
+            return_info=True,
+        )
+
+        # If binary requested, threshold after deformation
         if is_binary:
-            deformed = (deformed > 127).astype(np.uint8) * 255
-        return Image.fromarray(deformed), len(dx_all) - len(border_pts), ctrl_pts, dx_all, dy_all, border_pts
+            arr = np.array(out_img)
+            out_img = Image.fromarray(((arr > 127).astype(np.uint8)) * 255)
+
+        # Keep return signature compatible with your existing code:
+        # (deformed_img, n_ctrl_points, ctrl_pts, dx_all, dy_all, border_pts)
+        # Here we don't need these for training; return placeholders.
+        n_ctrl_points = int(info.n_control_points)
+        ctrl_pts = info.control_points_xy  # (n,2) in (x,y), non-border only
+        dx_all = info.dx
+        dy_all = info.dy
+        border_pts = np.zeros((0, 2), dtype=np.float32)  # not used here
+
+        return out_img, n_ctrl_points, ctrl_pts, dx_all, dy_all, border_pts
 
     def save_augmentation_samples(self):
         defect_types, defect_names_cn = get_defect_mapping(self.config)
