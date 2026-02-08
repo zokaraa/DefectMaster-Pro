@@ -141,4 +141,4 @@ This project is licensed under the MIT License.
 
 Feel free to open issues, star, or contribute!
 
-Last updated: January 2026
+Last updated: February 2026
